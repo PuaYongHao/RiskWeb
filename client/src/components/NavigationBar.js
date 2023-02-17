@@ -9,7 +9,19 @@ function NavigationBar(props) {
         <Navbar.Brand>Welcome</Navbar.Brand>
         {props.loggedIn ? (
           <Nav className="me-auto">
-            <Nav.Link>Dashboard</Nav.Link>
+            <Navbar.Text>
+              <Link
+                to="/main"
+                style={{ textDecoration: "none", margin: "0px 20px 0px 0px" }}
+              >
+                Home
+              </Link>
+            </Navbar.Text>
+            <Navbar.Text>
+              <Link to="/dashboard" style={{ textDecoration: "none" }}>
+                Dashboard
+              </Link>
+            </Navbar.Text>
           </Nav>
         ) : (
           <>{/* return empty element */}</>
@@ -19,7 +31,7 @@ function NavigationBar(props) {
             <Navbar.Text>
               Signed in as:{" "}
               <Link style={{ margin: "0px 20px 0px 0px" }}>Mark Otto</Link>
-              <Link to="/login">Sign out</Link>
+              <Link to="/">Sign out</Link>
             </Navbar.Text>
           ) : (
             <Nav.Link className="me-auto">Sign up</Nav.Link>

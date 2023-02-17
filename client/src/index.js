@@ -1,24 +1,24 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
-import App from "./App";
-import LoginPage from "./pages/LoginPage";
-import MainPage from "./pages/MainPage";
+import LoginPage from "./view/LoginPage";
+import MainPage from "./view/MainPage";
+import DashBoardPage from "./view/DashBoardPage";
 import "bootstrap/dist/css/bootstrap.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
-  },
-  {
-    path: "login",
     element: <LoginPage />,
   },
   {
     path: "main",
     element: <MainPage />,
+  },
+  {
+    path: "dashboard",
+    element: <DashBoardPage />,
   },
 ]);
 
