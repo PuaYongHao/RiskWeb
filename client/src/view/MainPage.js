@@ -1,184 +1,369 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "bootstrap/dist/css/bootstrap.css";
 import { Table, DropdownButton, Dropdown, Button, Form } from "react-bootstrap";
 import NavigationBar from "../components/NavigationBar";
+import axios from "../api/axios";
+import useAuth from "../hooks/useAuth";
 
 function MainPage() {
-  // sample data for the table
-  const data = [
-    {
-      id: 1,
-      name: "John",
-      description: "XXX",
-    },
-    { id: 2, name: "Jane", description: "XXX" },
-    { id: 3, name: "Jim", description: "XXX" },
-    { id: 4, name: "J", description: "XXX" },
-    { id: 5, name: "Y", description: "XXX" },
-    { id: 6, name: "Jane", description: "XXX" },
-  ];
+  const { auth } = useAuth();
 
-  const projectData = [
-    {
-      id: 1,
-      project: "Project A",
-      name: "John",
-      description: "XXX",
-      strategy: "XXX",
-    },
-    { id: 2, project: "Project B", name: "Jane", description: "XXX" },
-    { id: 3, project: "Project C", name: "Jim", description: "XXX" },
-    { id: 4, project: "Project A", name: "J", description: "XXX" },
-    { id: 5, project: "Project A", name: "Y", description: "XXX" },
-    { id: 6, project: "Project A", name: "Jane", description: "XXX" },
-  ];
-
-  const [projects, setProjects] = useState([
-    "Project A",
-    "Project B",
-    "Project C",
-  ]);
-
+  const [projects, setProjects] = useState([]);
+  const [scenarios, setScenarios] = useState([]);
+  const [projectManagers, setProjectManagers] = useState([]);
   const [selectedProject, setSelectedProject] = useState();
-  const [selectedData, setSelectedData] = useState([]);
-  const [selectedRisk, setSelectedRisk] = useState([]);
+  const [selectedProjectID, setSelectedProjectID] = useState();
+  const [selectedRiskTable, setSelectedRiskTable] = useState([]);
+  const [selectedProjectManager, setSelectedProjectManager] = useState();
 
-  // function to filter data by project
-  const filterDataByProject = (project) => {
-    const filteredData = projectData.filter((item) => item.project === project);
-    setSelectedData(filteredData);
-    setSelectedProject(project);
+  // Retrive all the projects under this account
+  useEffect(() => {
+    axios
+      .get("/project", {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      })
+      .then((response) => {
+        const newProjects = response.data;
+        const filteredProjects = newProjects.filter(
+          (project) => project.uid === auth?.uid
+        );
+        setProjects(filteredProjects);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  }, [auth?.uid]);
+
+  // Retrive all the risks from risk scenario database
+  useEffect(() => {
+    axios
+      .get("/scenario", {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      })
+      .then((response) => {
+        setScenarios(response.data);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  }, []);
+
+  // Retrive all the users that has project manager role
+  useEffect(() => {
+    axios
+      .get("/user", {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      })
+      .then((response) => {
+        setProjectManagers(response.data);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  }, []);
+
+  // function to display risk table for selected project
+  const filterDataByProject = async (projectID) => {
+    try {
+      const response = await axios.get("/risk", {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      });
+      const newRiskTable = response?.data;
+      const project = projects.find((p) => p._id === projectID);
+      const filteredRiskTable = newRiskTable
+        .filter((risk) => risk.pid === projectID)
+        .map((risk) => ({ ...risk, projectName: project.projectName }));
+      setSelectedRiskTable(filteredRiskTable);
+      setSelectedProject(project?.projectName);
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  // function to select a project id when user chooses one from dropdownlist
+  const clickProjectName = (projectID) => {
+    setSelectedProjectID(projectID);
+  };
+
+  // Change risk table when there is a change to selected project id
+  useEffect(() => {
+    filterDataByProject(selectedProjectID);
+  }, [selectedProjectID]);
 
   // function to filter data by project manager
-  const filterDataByName = (name) => {
-    if (name === "All") {
-      setSelectedData(projectData);
+  const filterDataByName = async (uid) => {
+    let response;
+    let secondresponse;
+    let newRiskTable;
+    let newProjects;
+    let filteredRiskTable;
+    setSelectedProject(null);
+    try {
+      setProjects([]);
+      response = await axios.get("/risk", {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      });
+      secondresponse = await axios.get("/project", {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      });
+      newRiskTable = response?.data;
+      newProjects = secondresponse?.data;
+      filteredRiskTable = [];
+    } catch (err) {
+      console.error(err);
+    }
+
+    if (uid === "-1") {
+      setSelectedProjectManager("All");
+      for (const r of newRiskTable) {
+        const project = await newProjects.find((p) => p._id === r.pid);
+        if (project) {
+          filteredRiskTable.push({
+            ...r,
+            projectName: project.projectName,
+          });
+        }
+      }
+      setSelectedRiskTable(filteredRiskTable);
     } else {
-      const filteredData = projectData.filter((item) => item.name === name);
-      setSelectedData(filteredData);
+      const projectManager = projectManagers.find((pm) => pm._id === uid);
+      setSelectedProjectManager(projectManager.name);
+      for (const r of newRiskTable) {
+        const project = await newProjects.find(
+          (p) => p.uid === uid && p._id === r.pid
+        );
+        if (project) {
+          filteredRiskTable.push({
+            ...r,
+            projectName: project.projectName,
+          });
+        }
+      }
+      const projectList = await newProjects.filter((p) => p.uid === uid);
+      setProjects(projectList);
+      setSelectedRiskTable(filteredRiskTable);
     }
   };
 
-  // function to create risk table for new project
-  const handleCreateProject = () => {
-    const newProject = prompt("Enter the name of the new project:");
-    if (newProject !== null && newProject !== "") {
-      setProjects([...projects, newProject]);
-      setSelectedProject(newProject);
-      filterDataByProject(newProject);
-    }
-  };
-
-  // function to delete risk table of a project
-  const handleDeleteProject = () => {
+  // function to delete the selected project and its risk table
+  const handleDeleteProject = async () => {
     const confirmed = window.confirm(
       `Are you sure you want to delete "${selectedProject}"?`
     );
     if (confirmed) {
-      setProjects(projects.filter((project) => project !== selectedProject));
-      setSelectedProject(projects[0]);
-      filterDataByProject(projects[0]);
+      try {
+        await axios.delete(`/project/${selectedProjectID}`, {
+          headers: { "Content-Type": "application/json" },
+          withCredentials: true,
+        });
+        const newProjects = projects.filter(
+          (project) => project._id !== selectedProjectID
+        );
+        setProjects(newProjects);
+        setSelectedProjectID(newProjects[0]?._id);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // function to create new project
+  const handleCreateProject = async () => {
+    const newProject = prompt("Enter the name of the new project:");
+    if (newProject !== null && newProject !== "") {
+      try {
+        const response = await axios.post(
+          "/project/create",
+          JSON.stringify({
+            uid: auth?.uid,
+            projectName: newProject,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            withCredentials: true,
+          }
+        );
+        const newProjectID = response?.data?._id;
+        setProjects([...projects, response?.data]);
+        setSelectedProjectID(newProjectID);
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
   // function to allow editing strategy text box
-  const updateStrategy = (row, strategy) => {
-    const index = selectedData.indexOf(row);
+  const allowStrategyEditing = (row, strategy) => {
+    console.log(projects);
+    const index = selectedRiskTable.indexOf(row);
     if (index >= 0) {
-      const newSelectedData = [...selectedData];
+      const newSelectedData = [...selectedRiskTable];
       newSelectedData[index] = { ...newSelectedData[index], strategy };
-      setSelectedData(newSelectedData);
+      setSelectedRiskTable(newSelectedData);
     }
   };
 
-  // function to remove a row from risk table
-  const removeRisk = (row) => {
-    setSelectedData(
-      selectedData.filter((selectedData) => selectedData !== row)
-    );
-  };
-
-  // function to add a risk to the selected risks table
-  const addRisk = (row) => {
-    const newRow = {
-      project: selectedProject,
-      name: row.name,
-      description: row.description,
-    };
-    const newSelectedData = [...selectedData, newRow];
-    setSelectedData(newSelectedData);
-  };
-
-  // To prepare project manager names for drop down list
-  const names = [];
-  projectData.forEach((row) => {
-    const index = names.findIndex((item) => item.name === row.name);
-    if (index === -1) {
-      names.push(row);
-    } else {
-      names[index].projectCount += row.projectCount;
+  // function to remove a risk from risk table
+  const removeRisk = async (row) => {
+    try {
+      await axios.delete(`/risk/${row.rid}`, {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true,
+      });
+      setSelectedRiskTable(
+        selectedRiskTable.filter((selectedData) => selectedData !== row)
+      );
+    } catch (err) {
+      console.error(err);
     }
-  });
+  };
+
+  // function to save a risk from risk table into database
+  const saveRisk = async (row) => {
+    try {
+      await axios.patch(
+        `/risk/${row.rid}`,
+        JSON.stringify({ strategy: row.strategy }),
+        {
+          headers: { "Content-Type": "application/json" },
+          withCredentials: true,
+        }
+      );
+      const index = selectedRiskTable.indexOf(row);
+      if (index >= 0) {
+        const newSelectedData = [...selectedRiskTable];
+        newSelectedData[index] = {
+          ...newSelectedData[index],
+          strategy: row.strategy,
+        };
+        setSelectedRiskTable(newSelectedData);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // function to add a risk to the selected project's risk table
+  const addRisk = async (row) => {
+    if (selectedProject !== null) {
+      try {
+        const risk = scenarios.find((s) => s._id === row._id);
+        const response = await axios.post(
+          "/risk/create",
+          JSON.stringify({
+            pid: selectedProjectID,
+            sid: risk._id,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            withCredentials: true,
+          }
+        );
+        const newRow = {
+          _id: row._id,
+          scenarioName: row.scenarioName,
+          scenarioDescription: row.scenarioDescription,
+          rid: response?.data?._id,
+          pid: selectedProjectID,
+          projectName: selectedProject,
+        };
+        const newSelectedData = [...selectedRiskTable, newRow];
+        console.log(newSelectedData);
+        setSelectedRiskTable(newSelectedData);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
 
   return (
     <div>
-      <NavigationBar loggedIn={true} />
+      <NavigationBar
+        loggedIn={true}
+        username={auth?.username}
+        role={auth?.role}
+      />
       <div className="container">
         <div className="d-flex">
           <DropdownButton
             variant="secondary"
             title="Select Project"
-            onSelect={(eventKey) => filterDataByProject(eventKey)}
+            onSelect={(eventKey) => clickProjectName(eventKey)}
             style={{ margin: "20px 20px 0 0" }}
           >
             {projects.map((project) => (
-              <Dropdown.Item eventKey={project}>{project}</Dropdown.Item>
+              <Dropdown.Item eventKey={project._id}>
+                {project.projectName}
+              </Dropdown.Item>
             ))}
           </DropdownButton>
-          <Button
-            type="submit"
-            variant="dark"
-            onClick={handleCreateProject}
-            style={{
-              margin: "20px 20px 0 0",
-              textAlign: "center",
-            }}
-          >
-            Create Project
-          </Button>{" "}
-          <Button
-            type="submit"
-            variant="dark"
-            onClick={handleDeleteProject}
-            style={{
-              margin: "20px 20px 0 0",
-              textAlign: "center",
-            }}
-          >
-            Delete Project
-          </Button>
-          <DropdownButton
-            variant="secondary"
-            title="Select Project Manager"
-            onSelect={(eventKey) => filterDataByName(eventKey)}
-            style={{ margin: "20px 0 0 0", marginLeft: "auto" }}
-          >
-            <Dropdown.Item eventKey="All">All</Dropdown.Item>
-            {names.map((row) => (
-              <Dropdown.Item eventKey={row.name}>{row.name}</Dropdown.Item>
-            ))}
-          </DropdownButton>
+          {!auth?.role && (
+            <Button
+              type="submit"
+              variant="dark"
+              onClick={handleCreateProject}
+              style={{
+                margin: "20px 20px 0 0",
+                textAlign: "center",
+              }}
+            >
+              Create Project
+            </Button>
+          )}
+          {!auth?.role && (
+            <Button
+              type="submit"
+              variant="dark"
+              onClick={handleDeleteProject}
+              style={{
+                margin: "20px 20px 0 0",
+                textAlign: "center",
+              }}
+            >
+              Delete Project
+            </Button>
+          )}
+          {auth?.role && (
+            <DropdownButton
+              variant="secondary"
+              title="Select Project Manager"
+              onSelect={(eventKey) => filterDataByName(eventKey)}
+              style={{ margin: "20px 0 0 0", marginLeft: "auto" }}
+            >
+              <Dropdown.Item eventKey="-1">All</Dropdown.Item>
+              {projectManagers.map((row) => (
+                <Dropdown.Item eventKey={row._id}>{row.name}</Dropdown.Item>
+              ))}
+            </DropdownButton>
+          )}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <h3
-            style={{
-              margin: "20px 0 20px 0",
-              flexBasis: "49%",
-            }}
-          >
-            Risk Table for {selectedProject}
-          </h3>
+          {!auth?.role && (
+            <h3
+              style={{
+                margin: "20px 0 20px 0",
+                flexBasis: "49%",
+              }}
+            >
+              Risk Table for {selectedProject}
+            </h3>
+          )}
+          {auth?.role && (
+            <h3
+              style={{
+                margin: "20px 0 20px 0",
+                flexBasis: "49%",
+              }}
+            >
+              Risk Table of {selectedProjectManager}
+            </h3>
+          )}
           <h3
             style={{
               margin: "20px 0 20px 0",
@@ -207,11 +392,11 @@ function MainPage() {
               </tr>
             </thead>
             <tbody>
-              {selectedData.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.project}</td>
-                  <td>{row.name}</td>
-                  <td>{row.description}</td>
+              {selectedRiskTable.map((row) => (
+                <tr key={row.rid}>
+                  <td>{row.projectName}</td>
+                  <td>{row.scenarioName}</td>
+                  <td>{row.scenarioDescription}</td>
                   <td>
                     <Form.Group
                       className="mb-3"
@@ -222,7 +407,7 @@ function MainPage() {
                         rows={3}
                         value={row.strategy}
                         onChange={(event) =>
-                          updateStrategy(row, event.target.value)
+                          allowStrategyEditing(row, event.target.value)
                         }
                       />
                     </Form.Group>
@@ -230,14 +415,15 @@ function MainPage() {
                   <td>
                     <button
                       type="button"
-                      class="btn btn-success"
+                      className="btn btn-success"
+                      onClick={() => saveRisk(row)}
                       style={{ margin: "0 5px 0 0" }}
                     >
                       Save
                     </button>
                     <button
                       type="button"
-                      class="btn btn-danger"
+                      className="btn btn-danger"
                       onClick={() => removeRisk(row)}
                     >
                       Delete
@@ -263,14 +449,14 @@ function MainPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  <td>{row.description}</td>
+              {scenarios.map((row) => (
+                <tr key={row._id}>
+                  <td>{row.scenarioName}</td>
+                  <td>{row.scenarioDescription}</td>
                   <td>
                     <button
                       type="button"
-                      class="btn btn-success"
+                      className="btn btn-success"
                       onClick={() => addRisk(row)}
                     >
                       Add

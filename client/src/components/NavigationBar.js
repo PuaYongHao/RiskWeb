@@ -17,11 +17,13 @@ function NavigationBar(props) {
                 Home
               </Link>
             </Navbar.Text>
-            <Navbar.Text>
-              <Link to="/dashboard" style={{ textDecoration: "none" }}>
-                Dashboard
-              </Link>
-            </Navbar.Text>
+            {props.role && (
+              <Navbar.Text>
+                <Link to="/dashboard" style={{ textDecoration: "none" }}>
+                  Dashboard
+                </Link>
+              </Navbar.Text>
+            )}
           </Nav>
         ) : (
           <>{/* return empty element */}</>
@@ -30,7 +32,9 @@ function NavigationBar(props) {
           {props.loggedIn ? (
             <Navbar.Text>
               Signed in as:{" "}
-              <Link style={{ margin: "0px 20px 0px 0px" }}>Mark Otto</Link>
+              <Link style={{ margin: "0px 20px 0px 0px" }}>
+                {props.username}
+              </Link>
               <Link to="/">Sign out</Link>
             </Navbar.Text>
           ) : (
